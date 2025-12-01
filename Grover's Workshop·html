@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Grover's Workshop — Interactive Tutorial</title>
+<style>
+  :root{--bg:#0f1724;--card:#0b1220;--accent:#60a5fa;--muted:#94a3b8;--good:#34d399;--danger:#fb7185}
+  html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial;background:linear-gradient(180deg,#071026 0%,#071427 60%);color:#e6eef8}
+  .app{max-width:1100px;margin:24px auto;padding:18px;}
+  header{display:flex;align-items:center;gap:12px}
+  h1{margin:0;font-size:20px}
+  p.lead{margin:6px 0 18px;color:var(--muted);font-size:13px}
+  .top-controls{display:flex;gap:8px;align-items:center;margin:12px 0}
+  select,input[type=number]{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted);padding:6px 8px;border-radius:6px}
+  button.btn{background:var(--accent);border:none;color:#012; padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600}
+  .layout{display:grid;grid-template-columns:520px 1fr;gap:18px}
+  .card{background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border-radius:12px;padding:12px}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
+  .cell{background:#0b1726;border-radius:8px;height:84px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;border:1px solid rgba(255,255,255,0.03)}
+  .cell .idx{font-size:12px;color:var(--muted)}
+  .bar{width:60%;height:6px;border-radius:6px;margin-top:8px}
+  .panel{padding:12px}
+  .table{width:100%;border-collapse:collapse;margin-top:12px}
+  .table td{padding:6px;border-bottom:1px dashed rgba(255,255,255,0.03)}
+  .controls{display:flex;gap:8px;flex-wrap:wrap}
+  .small{font-size:12px;color:var(--muted)}
+  .explain{background:linear-gradient(180deg,rgba(255,255,255,0.01),transparent);padding:10px;border-radius:8px;margin-top:10px;color:var(--muted);font-size:13px}
+  footer{margin-top:14px;color:var(--muted);font-size:12px}
+  .tutorial-step{background:rgba(255,255,255,0.02);padding:10px;border-radius:8px;margin-top:8px}
+  .codebox{background:#021426;padding:10px;border-radius:8px;font-family:monospace;font-size:12px;color:#cfe8ff;overflow:auto}
+  .progress-plot{height:120px;width:100%;background:linear-gradient(90deg,#062433,#041628);border-radius:8px;padding:8px}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Grover's Workshop — Interactive Tutorial</h1>
+  </header>
+  <p class="lead">Learn Grover's algorithm by building it step-by-step. Visualize amplitudes, implement oracle & diffusion, run iterations, and measure. Everything is editable in the file — you can run this as a single HTML file locally.</p>
+
+  <div class="top-controls">
+    <label class="small">N (boxes):</label>
+    <select id="selectN"><option>4</option><option selected>8</option><option>16</option><option>32</option></select>
+    <label class="small">Targets:</label>
+    <input id="targetsInput" type="text" value="5" style="width:120px" />
+    <button class="btn" id="randomTarget">Randomize Target</button>
+    <button class="btn" id="resetAll">Reset</button>
+    <div style="margin-left:auto;color:var(--muted);font-size:13px">Mode: <strong style="color:white">Tutorial + Sandbox</strong></div>
+  </div>
+
+  <div class="layout">
+    <div>
+      <div class="card panel">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <strong>Board</strong>
+          <div class="small">Click cells to toggle manual oracle (for advanced) — or use the Oracle button</div>
+        </div>
+
+        <div id="grid" class="grid" style="margin-top:12px"></div>
+
+        <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
+          <div class="controls">
+            <button class="btn" id="initBtn">Init (Hadamard)</button>
+            <button class="btn" id="oracleBtn">Oracle</button>
+            <button class="btn" id="diffBtn">Diffusion</button>
+            <button class="btn" id="iterateBtn">Iterate k</button>
+            <button class="btn" id="measureBtn">Measure</button>
+          </div>
+        </div>
+
+        <div class="explain" id="explainPanel">
+          <div><strong>Explanation</strong></div>
+          <div id="explainText" class="small">Press <em>Init</em> to create equal superposition across all states. Then use <em>Oracle</em> & <em>Diffusion</em> to amplify the target(s).</div>
+        </div>
+      </div>
+
+      <div class="card panel" style="margin-top:12px">
+        <strong>State vector (amplitudes & probabilities)</strong>
+        <table class="table" id="stateTable"></table>
+        <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+          <div class="small">Optimal k ≈ ⌊π/4 × √N⌋</div>
+          <div id="kcalc" style="margin-left:auto;color:var(--muted)"></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card panel">
+        <strong>Tutorial Steps</strong>
+        <div class="tutorial-step" id="tstep">
+          <div><strong>Step 0 – What is happening?</strong></div>
+          <div class="small" id="t0">We will walk through initialization, oracle (phase flip), diffusion (inversion about the mean), and measurement. Press <em>Init</em> to begin.</div>
+        </div>
+
+        <div class="tutorial-step" style="margin-top:10px">
+          <div><strong>Try this exercise</strong></div>
+          <ol class="small">
+            <li>Set N to 4, set target to 2, press <em>Init</em>.</li>
+            <li>Press <em>Oracle</em> — watch the amplitude sign flip on the target.</li>
+            <li>Press <em>Diffusion</em> — compute average and see the reflection.</li>
+            <li>Press <em>Measure</em> — observe result.</li>
+          </ol>
+        </div>
+
+        <div class="tutorial-step">
+          <div><strong>Progress plot</strong></div>
+          <div class="progress-plot" id="plotCanvas"></div>
+        </div>
+
+        <div class="tutorial-step">
+          <div><strong>Sandbox — small code</strong></div>
+          <pre class="codebox" id="codebox">// State operations used in this app (JS)
+function oracle(state, targets){ targets.forEach(t=>state[t]*=-1); }
+function diffusion(state){ let avg = state.reduce((s,v)=>s+v,0)/state.length; for(let i=0;i<state.length;i++) state[i] = 2*avg - state[i]; }
+          </pre>
+
+        </div>
+
+        <div class="tutorial-step">
+          <div><strong>Advanced: design your oracle</strong></div>
+          <div class="small">You can enter a list of target indices (comma separated) in the <em>Targets</em> box. e.g. <code>3</code> or <code>1,5</code>.</div>
+        </div>
+
+      </div>
+
+      <div class="card panel" style="margin-top:12px">
+        <strong>Instructor / Notes</strong>
+        <div class="small">This single file contains a full interactive tutorial. Use it to demonstrate Grover's algorithm, to run experiments, and to copy the JS functions into a classroom exercise. Tips: use small N (4,8) for explanation, then scale up for experiments. The file is intentionally self-contained so you can run it locally (double-click) or serve on static web host.</div>
+      </div>
+    </div>
+  </div>
+
+  <footer>Made for: <strong>Grover's Workshop</strong> — interactive, explorable, copyable. You can export the state table or copy the code blocks to your project. </footer>
+</div>
+
+<script>
+// --- Core simulation logic ---
+let N = parseInt(document.getElementById('selectN').value);
+let state = [];
+let targets = [];
+let lastMeasured = null;
+const gridEl = document.getElementById('grid');
+const tableEl = document.getElementById('stateTable');
+const explainText = document.getElementById('explainText');
+const plotDiv = document.getElementById('plotCanvas');
+
+function parseTargetsFromInput(){
+  const raw = document.getElementById('targetsInput').value.trim();
+  if(!raw) return [];
+  return Array.from(new Set(raw.split(',').map(s=>parseInt(s.trim())).filter(x=>Number.isFinite(x) && x>=0 && x<N)));
+}
+
+function calcK(n){ return Math.floor((Math.PI/4)*Math.sqrt(n)); }
+
+function init(){
+  N = parseInt(document.getElementById('selectN').value);
+  state = new Array(N).fill(1/Math.sqrt(N));
+  targets = parseTargetsFromInput();
+  renderGrid();
+  renderTable();
+  renderK();
+  explainText.innerText = 'Initialized: equal superposition (Hadamard on all qubits).';
+  plotData = [];
+  drawPlot();
+}
+
+function setRandomTarget(){
+  N = parseInt(document.getElementById('selectN').value);
+  const r = Math.floor(Math.random()*N);
+  document.getElementById('targetsInput').value = ''+r;
+  targets = [r];
+  renderGrid();
+  renderTable();
+}
+
+document.getElementById('randomTarget').onclick = ()=>{ setRandomTarget(); explainText.innerText='Random target selected (hidden). Press Oracle to mark it.' }
+
+function oracle(){
+  targets = parseTargetsFromInput();
+  targets.forEach(t=>state[t] *= -1);
+  explainText.innerText = 'Oracle applied: phase flip on target(s) (amplitude sign flipped).';
+  renderGrid(); renderTable(); drawPlot();
+}
+
+function diffusion(){
+  const avg = state.reduce((s,v)=>s+v,0)/N;
+  for(let i=0;i<N;i++) state[i] = 2*avg - state[i];
+  explainText.innerText = 'Diffusion applied: inversion about the mean — amplitudes reflected about average.';
+  renderGrid(); renderTable(); drawPlot();
+}
+
+function iterateK(){
+  const k = calcK(N);
+  explainText.innerText = `Iterating Oracle+Diffusion k=${k} times (optimal approx).`;
+  for(let i=0;i<k;i++){ oracle(); diffusion(); }
+  renderGrid(); renderTable(); drawPlot();
+}
+
+function measure(){
+  const probs = state.map(a=>a*a);
+  // deterministic: choose argmax (visual demo). For realistic sampling use random weighted choice.
+  let maxIdx = 0; let maxv = probs[0];
+  for(let i=1;i<probs.length;i++) if(probs[i] > maxv){ maxIdx = i; maxv = probs[i]; }
+  lastMeasured = maxIdx;
+  explainText.innerText = `Measured (deterministic argmax) => index ${maxIdx}. Probability ${maxv.toFixed(4)}.`;
+  // animate reveal briefly
+  renderGrid(true);
+  renderTable();
+}
+
+function renderGrid(reveal=false){
+  gridEl.innerHTML = '';
+  // choose columns for grid to be square-like
+  const cols = Math.ceil(Math.sqrt(N));
+  gridEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  for(let i=0;i<N;i++){
+    const cell = document.createElement('div'); cell.className='cell';
+    const amp = state[i] || 0;
+    const mag = Math.min(1, Math.abs(amp));
+    const hue = amp < 0 ? 'linear-gradient(0deg,#f97373,' : 'linear-gradient(0deg,#60a5fa,';
+    cell.style.background = `${hue} rgba(255,255,255,0.02) ${Math.round(mag*100)}%, transparent ${Math.round(mag*100)}%)`;
+    // label
+    const idx = document.createElement('div'); idx.className='idx'; idx.innerText = i;
+    const val = document.createElement('div'); val.style.fontSize='13px'; val.style.marginTop='6px'; val.innerText = amp.toFixed(4);
+    const bar = document.createElement('div'); bar.className='bar'; bar.style.background = amp<0? '#fb7185' : '#60a5fa'; bar.style.opacity = Math.abs(mag);
+    bar.style.height = Math.max(6, Math.abs(amp)*40)+'px';
+    // if reveal and measured match, highlight
+    if(reveal && lastMeasured===i){ cell.style.boxShadow='0 0 14px 4px rgba(96,165,250,0.12)'; }
+    cell.appendChild(idx); cell.appendChild(val); cell.appendChild(bar);
+    cell.onclick = ()=>{ // manual toggle oracle marking
+      // toggle target presence in input
+      const cur = parseTargetsFromInput();
+      if(cur.includes(i)) cur.splice(cur.indexOf(i),1); else cur.push(i);
+      document.getElementById('targetsInput').value = cur.join(',');
+      targets = cur; explainText.innerText='Updated targets manually.'; renderGrid(); renderTable();
+    };
+    gridEl.appendChild(cell);
+  }
+}
+
+function renderTable(){
+  tableEl.innerHTML = '';
+  let header = document.createElement('tr'); header.innerHTML = '<td><strong>Index</strong></td><td><strong>Amplitude</strong></td><td><strong>Prob</strong></td>';
+  tableEl.appendChild(header);
+  const probs = state.map(a=>a*a);
+  for(let i=0;i<N;i++){
+    const tr = document.createElement('tr');
+    const idx = document.createElement('td'); idx.innerText = i;
+    const amp = document.createElement('td'); amp.innerText = (state[i]||0).toFixed(6);
+    const pr = document.createElement('td'); pr.innerText = (probs[i]||0).toFixed(6);
+    tr.appendChild(idx); tr.appendChild(amp); tr.appendChild(pr);
+    tableEl.appendChild(tr);
+  }
+}
+
+function renderK(){ document.getElementById('kcalc').innerText = 'k ≈ ' + calcK(N); }
+
+// small plot showing prob of target over iterations
+let plotData = [];
+function drawPlot(){
+  plotDiv.innerHTML = '';
+  const canvas = document.createElement('canvas'); canvas.width = plotDiv.clientWidth-16; canvas.height = plotDiv.clientHeight-16;
+  plotDiv.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+  // update plot data: push current best probability
+  const probs = state.map(a=>a*a);
+  const targetIdx = parseTargetsFromInput()[0] || 0;
+  plotData.push(probs[targetIdx] || 0);
+  if(plotData.length > canvas.width/2) plotData.shift();
+  // draw grid
+  ctx.fillStyle = '#021826'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.beginPath(); for(let i=0;i<5;i++){ let y = (i/4)*canvas.height; ctx.moveTo(0,y); ctx.lineTo(canvas.width,y);} ctx.stroke();
+  // draw line
+  ctx.beginPath(); ctx.strokeStyle='#60a5fa'; ctx.lineWidth=2;
+  for(let i=0;i<plotData.length;i++){
+    const x = i*(canvas.width/Math.max(1,plotData.length-1));
+    const y = canvas.height - plotData[i]*canvas.height;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+}
+
+// --- UI bindings ---
+document.getElementById('initBtn').onclick = init;
+document.getElementById('oracleBtn').onclick = oracle;
+document.getElementById('diffBtn').onclick = diffusion;
+document.getElementById('iterateBtn').onclick = iterateK;
+document.getElementById('measureBtn').onclick = measure;
+document.getElementById('resetAll').onclick = ()=>{ document.getElementById('targetsInput').value=''; init(); };
+document.getElementById('selectN').onchange = ()=>{ init(); };
+
+// --- start ---
+init();
+</script>
+</body>
+</html>
